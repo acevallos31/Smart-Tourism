@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "author": "Equipo 2 - Smart-Tourism",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 20,
+      "left": 20,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "entrada",
+      "top": -80,
+      "left": -160,
+      "attrs": {
+        "color": "blue",
+        "label": "ENT-01"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "salida",
+      "top": 30,
+      "left": -160,
+      "attrs": {
+        "color": "orange",
+        "label": "SAL-01"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "verde",
+      "top": -80,
+      "left": 260,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "amarillo",
+      "top": -10,
+      "left": 260,
+      "attrs": {
+        "color": "yellow"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "rojo",
+      "top": 60,
+      "left": 260,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -42,
+      "left": 328,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 28,
+      "left": 328,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": 98,
+      "left": 328,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": 230,
+      "left": 40,
+      "attrs": {
+        "pins": "i2c"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "entrada:1.l",
+      "esp:D18",
+      "blue",
+      []
+    ],
+    [
+      "entrada:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "salida:1.l",
+      "esp:D19",
+      "orange",
+      []
+    ],
+    [
+      "salida:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "verde:A",
+      "esp:D25",
+      "green",
+      []
+    ],
+    [
+      "verde:C",
+      "r1:1",
+      "black",
+      []
+    ],
+    [
+      "r1:2",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "amarillo:A",
+      "esp:D26",
+      "yellow",
+      []
+    ],
+    [
+      "amarillo:C",
+      "r2:1",
+      "black",
+      []
+    ],
+    [
+      "r2:2",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "rojo:A",
+      "esp:D27",
+      "red",
+      []
+    ],
+    [
+      "rojo:C",
+      "r3:1",
+      "black",
+      []
+    ],
+    [
+      "r3:2",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "lcd:VCC",
+      "esp:VIN",
+      "red",
+      []
+    ],
+    [
+      "lcd:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "lcd:SDA",
+      "esp:D21",
+      "green",
+      []
+    ],
+    [
+      "lcd:SCL",
+      "esp:D22",
+      "blue",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
