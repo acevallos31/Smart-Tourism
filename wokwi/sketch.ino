@@ -2,78 +2,130 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Smart-Tourism | SmartAforo IoT | Equipo 2
-// Capacidad de 100 personas: valor ficticio para la PoC.
-const int PIN_ENTRADA = 18;
-const int PIN_SALIDA = 19;
-const int LED_VERDE = 25;
-const int LED_AMARILLO = 26;
-const int LED_ROJO = 27;
-const int CAPACIDAD = 100;
+// Smart-Tourism | Equipo 2 | Simulacion de acceso bidireccional
+// Capacidad hipotetica para facilitar las pruebas: 10 personas.
+constexpr int SENSOR_A = 18;
+constexpr int SENSOR_B = 19;
+constexpr int LED_VERDE = 25;
+constexpr int LED_AMARILLO = 26;
+constexpr int LED_ROJO = 27;
+constexpr int CAPACIDAD = 10;
+constexpr unsigned long TIEMPO_PASO_MS = 4000;
+constexpr unsigned long ANTIRREBOTE_MS = 60;
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 int ocupacion = 0;
-unsigned long secEntrada = 0, secSalida = 0;
-bool anteriorEntrada = HIGH, anteriorSalida = HIGH;
-unsigned long ultimaEntrada = 0, ultimaSalida = 0;
+unsigned long secuencia = 0;
+unsigned long inicioPaso = 0;
+unsigned long ultimoCambioA = 0, ultimoCambioB = 0;
+bool estadoA = HIGH, estadoB = HIGH;
+bool lecturaAnteriorA = HIGH, lecturaAnteriorB = HIGH;
 
-void emitir(const char* dispositivo, const char* direccion, unsigned long secuencia,
-            const char* resultado, const char* alerta) {
-  Serial.printf("{\"deviceId\":\"%s\",\"eventId\":\"%s-%04lu\",\"sequence\":%lu,\"timestamp_ms\":%lu,\"metric\":\"paso\",\"value\":1,\"unit\":\"persona\",\"direction\":\"%s\",\"validation\":\"%s\",\"occupancy\":%d,\"capacity\":%d,\"alert\":\"%s\"}\n",
-                dispositivo, dispositivo, secuencia, secuencia, millis(), direccion,
-                resultado, ocupacion, CAPACIDAD, alerta);
+enum Paso { ESPERANDO, PRIMERO_A, PRIMERO_B, ESPERAR_LIBERACION };
+Paso paso = ESPERANDO;
+
+const char* alertaActual() {
+  if (ocupacion >= CAPACIDAD) return "CAPACIDAD_MAXIMA";
+  if (ocupacion * 100 >= CAPACIDAD * 80) return "ADVERTENCIA_80";
+  return "NINGUNA";
 }
-void actualizarPanel() {
-  digitalWrite(LED_VERDE, ocupacion < 80);
-  digitalWrite(LED_AMARILLO, ocupacion >= 80 && ocupacion < CAPACIDAD);
-  digitalWrite(LED_ROJO, ocupacion >= CAPACIDAD);
+
+void mostrarAforo() {
+  bool lleno = ocupacion >= CAPACIDAD;
+  bool advertencia = ocupacion * 100 >= CAPACIDAD * 80;
+  digitalWrite(LED_VERDE, !advertencia);
+  digitalWrite(LED_AMARILLO, advertencia && !lleno);
+  digitalWrite(LED_ROJO, lleno);
   lcd.clear();
-  lcd.setCursor(0, 0); lcd.print("SmartAforo IoT");
-  lcd.setCursor(0, 1); lcd.print("Aforo: "); lcd.print(ocupacion); lcd.print("/100");
+  lcd.setCursor(0, 0);
+  lcd.print("SmartAforo IoT");
+  lcd.setCursor(0, 1);
+  lcd.print("Aforo: ");
+  lcd.print(ocupacion);
+  lcd.print("/");
+  lcd.print(CAPACIDAD);
 }
-void entrada() {
-  ++secEntrada;
-  if (ocupacion >= CAPACIDAD) {
-    emitir("ENT-01", "entrada", secEntrada, "RECHAZADO", "CAPACIDAD_MAXIMA");
-    return;
+
+void registrar(const char* direccion, const char* validacion, const char* motivo) {
+  ++secuencia;
+  Serial.printf("{\"deviceId\":\"ACCESO-01\",\"eventId\":\"ACCESO-01-%06lu\",\"sequence\":%lu,\"timestamp_ms\":%lu,\"direction\":\"%s\",\"validation\":\"%s\",\"reason\":\"%s\",\"occupancy\":%d,\"capacity\":%d,\"alert\":\"%s\"}\n",
+                secuencia, secuencia, millis(), direccion, validacion, motivo,
+                ocupacion, CAPACIDAD, alertaActual());
+}
+
+void completarPaso(bool entrada) {
+  if (entrada) {
+    if (ocupacion < CAPACIDAD) {
+      ++ocupacion;
+      registrar("entrada", "ACEPTADO", "A_B");
+    } else {
+      registrar("entrada", "RECHAZADO", "AFORO_MAXIMO");
+    }
+  } else {
+    if (ocupacion > 0) {
+      --ocupacion;
+      registrar("salida", "ACEPTADO", "B_A");
+    } else {
+      registrar("salida", "RECHAZADO", "AFORO_CERO");
+    }
   }
-  ++ocupacion;
-  const char* alerta = ocupacion == CAPACIDAD ? "CAPACIDAD_MAXIMA" :
-                       ocupacion >= 80 ? "ADVERTENCIA_80" : "NINGUNA";
-  emitir("ENT-01", "entrada", secEntrada, "ACEPTADO", alerta);
-  actualizarPanel();
+  mostrarAforo();
+  paso = ESPERAR_LIBERACION;
 }
-void salida() {
-  ++secSalida;
-  if (ocupacion == 0) {
-    emitir("SAL-01", "salida", secSalida, "RECHAZADO", "SALIDA_SIN_OCUPACION");
-    return;
-  }
-  --ocupacion;
-  emitir("SAL-01", "salida", secSalida, "ACEPTADO", "NINGUNA");
-  actualizarPanel();
-}
+
 void setup() {
   Serial.begin(115200);
-  pinMode(PIN_ENTRADA, INPUT_PULLUP);
-  pinMode(PIN_SALIDA, INPUT_PULLUP);
+  pinMode(SENSOR_A, INPUT_PULLUP);
+  pinMode(SENSOR_B, INPUT_PULLUP);
   pinMode(LED_VERDE, OUTPUT);
   pinMode(LED_AMARILLO, OUTPUT);
   pinMode(LED_ROJO, OUTPUT);
   Wire.begin(21, 22);
-  lcd.init(); lcd.backlight();
-  actualizarPanel();
-  Serial.println("Smart-Tourism iniciado. Pulsador azul: entrada; naranja: salida.");
+  lcd.init();
+  lcd.backlight();
+  mostrarAforo();
+  Serial.println("Smart-Tourism: A->B entrada; B->A salida. Pulsar y soltar cada boton.");
 }
+
 void loop() {
-  bool e = digitalRead(PIN_ENTRADA), s = digitalRead(PIN_SALIDA);
   unsigned long ahora = millis();
-  if (anteriorEntrada == HIGH && e == LOW && ahora - ultimaEntrada > 150) {
-    ultimaEntrada = ahora; entrada();
+  bool rawA = digitalRead(SENSOR_A);
+  bool rawB = digitalRead(SENSOR_B);
+  if (rawA != lecturaAnteriorA) ultimoCambioA = ahora;
+  if (rawB != lecturaAnteriorB) ultimoCambioB = ahora;
+  lecturaAnteriorA = rawA;
+  lecturaAnteriorB = rawB;
+
+  bool pulsoA = false, pulsoB = false;
+  if (ahora - ultimoCambioA >= ANTIRREBOTE_MS && rawA != estadoA) {
+    estadoA = rawA;
+    pulsoA = estadoA == LOW;
   }
-  if (anteriorSalida == HIGH && s == LOW && ahora - ultimaSalida > 150) {
-    ultimaSalida = ahora; salida();
+  if (ahora - ultimoCambioB >= ANTIRREBOTE_MS && rawB != estadoB) {
+    estadoB = rawB;
+    pulsoB = estadoB == LOW;
   }
-  anteriorEntrada = e;
-  anteriorSalida = s;
-  delay(10);
+
+  if (paso == ESPERAR_LIBERACION) {
+    if (estadoA == HIGH && estadoB == HIGH) paso = ESPERANDO;
+  } else if (paso == ESPERANDO) {
+    if (pulsoA && pulsoB) {
+      registrar("indeterminada", "REVISAR_DATOS", "SIMULTANEOS");
+      paso = ESPERAR_LIBERACION;
+    } else if (pulsoA) {
+      inicioPaso = ahora;
+      paso = PRIMERO_A;
+    } else if (pulsoB) {
+      inicioPaso = ahora;
+      paso = PRIMERO_B;
+    }
+  } else if (ahora - inicioPaso > TIEMPO_PASO_MS) {
+    registrar("indeterminada", "REVISAR_DATOS", "PASO_INCOMPLETO");
+    paso = ESPERAR_LIBERACION;
+  } else if (paso == PRIMERO_A && pulsoB) {
+    completarPaso(true);
+  } else if (paso == PRIMERO_B && pulsoA) {
+    completarPaso(false);
+  }
+  delay(5);
 }

@@ -1,23 +1,16 @@
 # Smart-Tourism | SmartAforo IoT
 
-Prototipo académico del **Equipo 2** para la asignatura **Tecnologías Emergentes**. Simula el control de aforo de visitantes en las Cuevas de Taulabé, Honduras, mediante un ESP32 en Wokwi.
+Prototipo académico del **Equipo 2** para **Tecnologías Emergentes**. Simula el control de aforo en las Cuevas de Taulabé, Honduras, usando un ESP32 en Wokwi.
 
-## Prototipo en Wokwi
+**[Abrir prototipo en Wokwi](https://wokwi.com/projects/479603902395583489)**
 
-**[Abrir simulación de Smart-Tourism](https://wokwi.com/projects/479603902395583489)**
+## Funcionamiento
 
-## Funcionamiento actual
+- Dos pulsadores simulan barreras A (exterior) y B (interior).
+- **A → B:** entrada; **B → A:** salida.
+- Capacidad **hipotética de 10 personas**, utilizada para facilitar las pruebas.
+- LED verde: 0–7; amarillo: 8–9; rojo: 10 (aforo completo).
+- LCD con ocupación y eventos JSON en el monitor serial.
+- Pasos incompletos o simultáneos se registran para revisión.
 
-- Pulsador **ENT-01**: registra una entrada.
-- Pulsador **SAL-01**: registra una salida.
-- Pantalla LCD: muestra la ocupación.
-- LEDs: verde (normal), amarillo (80 %) y rojo (100 %).
-- Monitor serial: muestra eventos en formato JSON.
-
-La capacidad de **100 personas** es un valor de ejemplo, no un dato oficial del lugar.
-
-## Archivos
-
-Los archivos del circuito están en [`wokwi/`](wokwi/): `diagram.json`, `sketch.ino` y `libraries.txt`.
-
-> Próxima mejora: dos barreras infrarrojas A/B para detectar automáticamente la dirección de paso en un único acceso bidireccional.
+Los archivos de Wokwi están en `wokwi/`: `sketch.ino`, `diagram.json` y `libraries.txt`.
