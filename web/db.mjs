@@ -16,7 +16,7 @@ export function createStore(connectionString=process.env.DATABASE_URL) {
     const result=await client.query(`INSERT INTO eventos_iot
      (dispositivo_id,session_id,event_id,sequence,fecha_hora,direction,validation,reason,occupancy,capacity,alert,payload)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     ON CONFLICT DO NOTHING RETURNING id`,[d,event.sessionId,event.eventId,event.sequence,event.fecha_hora,event.direction,event.validation,event.reason,event.occupancy,event.capacity,event.alert,raw]);
+     ON CONFLICT DO NOTHING RETURNING id`,[d,event.sessionId,event.eventId,event.sequence,event.timestamp,event.direction,event.validation,event.reason,event.occupancy,event.capacity,event.alert,raw]);
     if(result.rowCount) {
      const id=result.rows[0].id;
      await client.query(`INSERT INTO estado_aforo(dispositivo_id,ocupacion,capacidad,ultimo_evento_id)
