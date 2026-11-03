@@ -30,6 +30,7 @@ export function createServer() {
       response.writeHead(200, { 'Content-Type': types[path.extname(target)] || 'application/octet-stream', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
       response.end(request.method === 'HEAD' ? undefined : body);
     } catch (error) {
+      console.error('[HTTP]', request.method, request.url, error.code || error.name || 'Error', error.message);
       response.writeHead(error.code === 'ENOENT' ? 404 : 400, { 'Content-Type': 'text/plain; charset=utf-8' });
       response.end(error.code === 'ENOENT' ? 'Archivo no encontrado' : 'Solicitud no válida');
     }
