@@ -10,13 +10,18 @@
     "sync-data": "node web/scripts/sync-data.mjs",
     "test": "node --test web/test",
     "test:ui": "node web/scripts/check-ui.mjs",
-    "test:mqtt": "node web/scripts/check-mqtt.mjs"
+    "test:mqtt": "node web/scripts/check-mqtt.mjs",
+    "db:migrate": "node db/migrate.mjs",
+    "mqtt:worker": "node web/mqtt-worker.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "mqtt": "5.16.1",
     "playwright": "1.64.1"
+  },
+  "dependencies": {
+    "mqtt": "5.16.1",
+    "pg": "^8.13.0"
   }
 }
