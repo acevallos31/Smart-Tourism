@@ -1,0 +1,151 @@
+{
+  "name": "Smart-Tourism - Alertas IoT a WAHA (plantilla sin secretos)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-tourism-alertas",
+        "options": {}
+      },
+      "name": "Webhook Smart-Tourism",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        -64
+      ],
+      "id": "smart-tourism-1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nlet event = data.body ?? data.message ?? data.payload ?? data;\nif (typeof event === 'string') {\n  try { event = JSON.parse(event); }\n  catch (error) { return [{json:{send:false,reason:'Mensaje JSON no válido',error:error.message}}]; }\n}\nif (event && event.type === 'Buffer' && Array.isArray(event.data)) {\n  try { event = JSON.parse(Buffer.from(event.data).toString('utf8')); }\n  catch (error) { return [{json:{send:false,reason:'No se pudo interpretar el Buffer MQTT'}}]; }\n}\nif (!event || typeof event !== 'object') {\n  return [{json:{send:false,reason:'Estructura de evento no válida'}}];\n}\nconst capacity = Number(event.capacity);\nconst occupancy = Number(event.occupancy);\nconst validation = String(event.validation || 'ACEPTADO');\nconst eventId = String(event.eventId || 'SIN-ID');\nif (!Number.isInteger(capacity) || capacity <= 0 || !Number.isInteger(occupancy) || occupancy < 0 || occupancy > capacity) {\n  return [{json:{send:false,reason:'Datos de aforo invalidos',eventId,receivedKeys:Object.keys(event)}}];\n}\nconst store = $getWorkflowStaticData('global');\nconst level = occupancy >= capacity ? 'MAXIMO' : occupancy * 100 >= capacity * 80 ? 'ADVERTENCIA' : 'NORMAL';\nconst previous = store.lastLevel || 'NORMAL';\nconst invalid = validation === 'REVISAR_DATOS';\nlet message = '';\nif (invalid) {\n  message = `⚠️ Smart-Tourism: evento para revisión (${eventId}). Motivo: ${event.reason || 'NO_ESPECIFICADO'}. Aforo: ${occupancy}/${capacity}.`;\n} else if (level !== previous) {\n  if (level === 'MAXIMO') message = `🚨 Smart-Tourism: CAPACIDAD MÁXIMA (${occupancy}/${capacity}). Restringir nuevos ingresos.`;\n  else if (level === 'ADVERTENCIA') message = `⚠️ Smart-Tourism: aforo al ${Math.round(occupancy * 100 / capacity)}% (${occupancy}/${capacity}).`;\n  else message = `✅ Smart-Tourism: aforo normalizado (${occupancy}/${capacity}).`;\n}\nif (store.lastEventId === eventId) message = '';\nstore.lastEventId = eventId;\nif (!invalid) store.lastLevel = level;\nreturn [{json:{send:Boolean(message),message,eventId,occupancy,capacity,level,previous,validation,source:data.message !== undefined ? 'MQTT' : 'HTTP'}}];"
+      },
+      "name": "Evaluar aforo y cambios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1472,
+        -64
+      ],
+      "id": "smart-tourism-2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.send }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "¿Enviar alerta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1232,
+        -64
+      ],
+      "id": "smart-tourism-3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha-noweb-lab:3000/api/sendText",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\"X-Api-Key\":\"REEMPLAZAR_CON_CREDENCIAL_SEGURA\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ session: \"default\", chatId: \"REEMPLAZAR_GRUPO@g.us\", text: $json.message }) }}",
+        "options": {}
+      },
+      "name": "Enviar WhatsApp WAHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -960,
+        -144
+      ],
+      "id": "smart-tourism-4"
+    },
+    {
+      "parameters": {
+        "topics": "smart-tourism/taulabe/6ae93b438bcc8191/events",
+        "options": {}
+      },
+      "name": "MQTT Trigger",
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        -240
+      ],
+      "id": "smart-tourism-5"
+    }
+  ],
+  "connections": {
+    "Webhook Smart-Tourism": {
+      "main": [
+        [
+          {
+            "node": "Evaluar aforo y cambios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT Trigger": {
+      "main": [
+        [
+          {
+            "node": "Evaluar aforo y cambios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar aforo y cambios": {
+      "main": [
+        [
+          {
+            "node": "¿Enviar alerta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Enviar alerta?": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
