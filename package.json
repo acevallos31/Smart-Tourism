@@ -12,7 +12,8 @@
     "test:ui": "node web/scripts/check-ui.mjs",
     "test:mqtt": "node web/scripts/check-mqtt.mjs",
     "db:migrate": "node db/migrate.mjs",
-    "mqtt:worker": "node web/mqtt-worker.mjs"
+    "mqtt:worker": "node web/mqtt-worker.mjs",
+    "db:import-csv": "node db/import-csv.mjs"
   },
   "engines": {
     "node": ">=20"
