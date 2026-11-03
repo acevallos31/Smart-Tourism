@@ -6,7 +6,7 @@ const number = value => new Intl.NumberFormat('es-HN').format(value);
 const shortDate = value => new Intl.DateTimeFormat('es-HN', { day:'numeric', month:'short', timeZone:'UTC' }).format(new Date(value + 'T12:00:00Z'));
 const reasonLabel = { A_B:'Secuencia A → B', B_A:'Secuencia B → A', AFORO_MAXIMO:'Capacidad completa', AFORO_CERO:'Aforo en cero', PASO_INCOMPLETO:'Paso incompleto', SIMULTANEOS:'Pulsos simultáneos' };
 const validationLabel = { ACEPTADO:'Aceptado', RECHAZADO:'Rechazado', REVISAR_DATOS:'Revisar datos' };
-const state = { mode:'history', page:'overview', history:[], demo:[], live:[], pageIndex:0, filtered:[], historyName:'Datos del proyecto', client:null, connected:false, connecting:false, invalid:0, received:0, lastSeen:0, heartbeat:null, seen:new Set(), topic:DEFAULT_TOPIC, historyRevision:0, liveSequences:new Map(), gaps:0, audioEnabled:false, alertLevel:0, messageRevision:0, heartbeatRevision:0, eventRevision:0 };
+const state = { mode:'history', page:'overview', history:[], database:[], demo:[], live:[], pageIndex:0, filtered:[], historyName:'Datos del proyecto', client:null, connected:false, connecting:false, invalid:0, received:0, lastSeen:0, heartbeat:null, seen:new Set(), topic:DEFAULT_TOPIC, historyRevision:0, databaseRevision:0, liveSequences:new Map(), gaps:0, audioEnabled:false, alertLevel:0, messageRevision:0, heartbeatRevision:0, eventRevision:0 };
 let toastTimer;
 let audioContext;
 
@@ -22,7 +22,7 @@ function alertDetails(event) {
   return null;
 }
 function currentAlertEvent() {
-  if (state.mode === 'history') return null;
+  if (state.mode === 'history' || state.mode === 'database') return null;
   if (state.mode === 'live' && state.heartbeat && state.heartbeatRevision > state.eventRevision) return { ...state.heartbeat, alert:alertFor(state.heartbeat.occupancy,state.heartbeat.capacity), validation:'ACEPTADO', reason:'A_B' };
   return currentEvents().at(-1) || null;
 }
@@ -55,11 +55,30 @@ function resetDates() {
 }
 function clearFilters() { $('directionFilter').value = ''; $('validationFilter').value = ''; $('searchInput').value = ''; state.pageIndex = 0; }
 function selectMode(mode) {
-  state.mode = mode; clearFilters(); resetDates(); error();
+  state.mode = mode;
+  if(mode==='database') refreshDatabase(); clearFilters(); resetDates(); error();
   state.alertLevel=alertDetails(currentAlertEvent())?.rank||0;
   document.querySelectorAll('[data-mode]').forEach(button => { const active = button.dataset.mode === mode; button.classList.toggle('selected', active); button.setAttribute('aria-pressed', String(active)); });
   render();
 }
+async function refreshDatabase() {
+  const revision=++state.databaseRevision;
+  try {
+    const response=await fetch('/api/events?limit=10000',{cache:'no-store'});
+    if(!response.ok) throw new Error(response.status===503?'PostgreSQL no está configurado en este servidor.':'No se pudo consultar PostgreSQL (HTTP '+response.status+').');
+    const rows=await response.json();
+    if(!Array.isArray(rows)) throw new Error('Respuesta inesperada de la API.');
+    const events=rows.map(raw=>normalizeEvent(raw,{origin:'POSTGRESQL',sessionId:raw.sessionId||'historico'}));
+    events.sort((a,b)=>a.timestamp.localeCompare(b.timestamp)||a.sequence-b.sequence);
+    if(revision!==state.databaseRevision)return;
+    state.database=events;
+    if(state.mode==='database'){resetDates();render();}
+  } catch(err) {
+    if(revision!==state.databaseRevision)return;
+    if(state.mode==='database')error(err.message+' Puedes regresar a Datos guardados (CSV).');
+  }
+}
+
 function selectPage(page) {
   state.page = page; state.pageIndex = 0; clearFilters();
   const details = { overview:['Control de visitas','Mira el aforo, las entradas y las salidas de forma sencilla.','Resumen'], events:['Todos los movimientos','Busca y revisa las entradas y salidas registradas.','Movimientos'], alerts:['Alertas','Eventos rechazados o que necesitan revisión.','Alertas'], connection:['Conectar con Wokwi','Sigue estos pasos para recibir datos del ESP32.','Conectar Wokwi'] }[page];
@@ -81,8 +100,8 @@ function render() {
   $('eventCount').textContent = number(currentEvents().length);
   $('periodCount').textContent = `${stats.days.length} ${stats.days.length === 1 ? 'día' : 'días'}`;
   $('flowFooter').textContent = `${number(stats.total)} eventos en el período · ${number(stats.entries + stats.exits)} pasos aceptados`;
-  $('sourceBadge').textContent = state.mode === 'history' ? 'DATOS GUARDADOS' : state.mode === 'demo' ? 'PRUEBA' : 'WOKWI EN VIVO';
-  $('sourceNote').textContent = state.mode === 'history' ? `${number(state.history.length)} movimientos guardados en el proyecto.` : state.mode === 'demo' ? 'Usa los botones para probar el contador.' : 'Muestra los eventos recibidos mientras esta página está abierta.';
+  $('sourceBadge').textContent = state.mode === 'history' ? 'DATOS GUARDADOS' : state.mode === 'database' ? 'POSTGRESQL' : state.mode === 'demo' ? 'PRUEBA' : 'WOKWI EN VIVO';
+  $('sourceNote').textContent = state.mode === 'history' ? `${number(state.history.length)} movimientos guardados en el proyecto.` : state.mode === 'database' ? `${number(state.database.length)} movimientos consultados de PostgreSQL.` : state.mode === 'demo' ? 'Usa los botones para probar el contador.' : 'Muestra los eventos recibidos mientras esta página está abierta.';
   $('demoControls').hidden = state.mode !== 'demo' || state.page === 'connection'; $('livePrompt').hidden = state.mode !== 'live' || state.page === 'connection'; $('connectionPill').hidden = state.mode !== 'live';
   $('eventsTitle').textContent = state.page === 'overview' ? 'Últimos movimientos' : state.page === 'alerts' ? 'Eventos que necesitan atención' : 'Todos los movimientos';
   $('eventsSubtitle').textContent = state.page === 'alerts' ? 'Rechazos, aforo alto y pasos incompletos.' : 'Entradas y salidas registradas.';
@@ -122,7 +141,7 @@ function drawOccupancy(days) {
 
 function drawGauge(latest) {
   $('occupancyTitle').textContent = 'Personas dentro';
-  $('occupancySubtitle').textContent = state.mode === 'history' ? 'Según el último registro guardado' : 'Según el último evento recibido';
+  $('occupancySubtitle').textContent = (state.mode === 'history' || state.mode === 'database') ? 'Según el último registro histórico' : 'Según el último evento recibido';
   const occupancy = latest?.occupancy, capacity = latest?.capacity || 10;
   const level = !latest ? 'neutral' : latest.alert === 'CAPACIDAD_MAXIMA' ? 'danger' : latest.alert === 'ADVERTENCIA_80' ? 'warning' : 'normal';
   $('occupancyStatus').className = `badge ${level}`; $('occupancyStatus').textContent = !latest ? 'Sin datos' : level==='danger'?'Completo':level==='warning'?'Precaución':'Disponible';
