@@ -6,7 +6,7 @@ Prototipo académico del **Equipo 2** para **Tecnologías Emergentes**. Simula e
 
 ## Panel web interactivo
 
-**[Abrir el panel SmartTourism](https://smart-tourism-taulabe-panel.sablebatch2.chatgpt.site)** · Sitio privado publicado con Sites.
+**[Abrir el panel SmartTourism](https://smart-tourism.nocpbx.com/)** · Panel publicado en la infraestructura Proxmox mediante Cloudflare Tunnel.
 
 El proyecto incluye una página para explorar el histórico, simular entradas y salidas, y recibir eventos de Wokwi por MQTT.
 
