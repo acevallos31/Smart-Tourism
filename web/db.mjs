@@ -31,12 +31,12 @@ export function createStore(connectionString=process.env.DATABASE_URL) {
     return {inserted:Boolean(result.rowCount),event};
    } catch(e) {await client.query('ROLLBACK');throw e;} finally {client.release();}
   },
-  async list(limit=100) {
+  async list(limit=5000) {
    const r=await pool.query(`SELECT e.event_id AS "eventId",d.device_id AS "deviceId",e.session_id AS "sessionId",
     e.sequence,to_char(e.fecha_hora,'YYYY-MM-DD HH24:MI:SS') AS fecha_hora,
     e.direction,e.validation,e.reason,e.occupancy,e.capacity,e.alert
     FROM eventos_iot e JOIN dispositivos d ON d.id=e.dispositivo_id
-    ORDER BY e.id DESC LIMIT $1`,[Math.max(1,Math.min(1000,Number(limit)||100))]);
+    ORDER BY e.id DESC LIMIT $1`,[Math.max(1,Math.min(10000,Number(limit)||5000))]);
    return r.rows;
   },
   async health() {await pool.query('SELECT 1');return true;},
