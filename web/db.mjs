@@ -19,11 +19,11 @@ export function createStore(connectionString=process.env.DATABASE_URL) {
      ON CONFLICT DO NOTHING RETURNING id`,[d,event.sessionId,event.eventId,event.sequence,event.timestamp,event.direction,event.validation,event.reason,event.occupancy,event.capacity,event.alert,raw]);
     if(result.rowCount) {
      const id=result.rows[0].id;
-     await client.query(`INSERT INTO estado_aforo(dispositivo_id,ocupacion,capacidad,ultimo_evento_id)
-       VALUES($1,$2,$3,$4)
-       ON CONFLICT(dispositivo_id) DO UPDATE SET ocupacion=EXCLUDED.ocupacion,capacidad=EXCLUDED.capacidad,
-       ultimo_evento_id=EXCLUDED.ultimo_evento_id,actualizado_en=now()
-       WHERE estado_aforo.ultimo_evento_id IS NULL OR estado_aforo.ultimo_evento_id < EXCLUDED.ultimo_evento_id`,[d,event.occupancy,event.capacity,id]);
+     await client.query(`INSERT INTO estado_aforo_sesiones(dispositivo_id,session_id,ocupacion,capacidad,ultimo_evento_id,ultima_secuencia)
+       VALUES($1,$2,$3,$4,$5,$6)
+       ON CONFLICT(dispositivo_id,session_id) DO UPDATE SET ocupacion=EXCLUDED.ocupacion,capacidad=EXCLUDED.capacidad,
+       ultimo_evento_id=EXCLUDED.ultimo_evento_id,ultima_secuencia=EXCLUDED.ultima_secuencia,actualizado_en=now()
+       WHERE estado_aforo_sesiones.ultima_secuencia < EXCLUDED.ultima_secuencia`,[d,event.sessionId,event.occupancy,event.capacity,id,event.sequence]);
      if(event.alert!=='NINGUNA'||event.validation!=='ACEPTADO')
       await client.query('INSERT INTO alertas(evento_id,tipo) VALUES($1,$2)',[id,event.alert!=='NINGUNA'?event.alert:event.validation]);
     }
