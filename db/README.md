@@ -30,3 +30,15 @@ runuser -u postgres -- psql -d smart_tourism -c "SELECT session_id, COUNT(*) FRO
 ```
 
 La carga histórica y el consumidor MQTT comparten base, pero sus sesiones se diferencian. El CSV es sintético y no representa mediciones reales.
+
+## Vista PostgreSQL del panel (rama feature)
+
+El panel incluye una cuarta fuente **PostgreSQL** que consulta `GET /api/events?limit=10000` al seleccionarla. Para probar sin afectar producción, arranca el servidor de desarrollo en `127.0.0.1:3001` con `DATABASE_URL` configurada. El servidor principal en el puerto 3000 no se modifica.
+
+```bash
+PORT=3001 HOST=127.0.0.1 npm start
+curl -s http://127.0.0.1:3001/api/health
+curl -s http://127.0.0.1:3001/api/events?limit=2
+```
+
+La API es de **solo lectura** y muestra hasta 10.000 eventos recientes. No expongas esta API públicamente si contiene datos personales o sensibles; en esta fase se usan datos sintéticos. Los modos CSV, demostración y Wokwi continúan disponibles.
