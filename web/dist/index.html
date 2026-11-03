@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153f35"><meta name="description" content="Panel sencillo para ver el aforo y las visitas de SmartTourism.">
+  <title>SmartTourism · Control de visitas</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./styles.css">
+  <script defer src="./vendor/mqtt.min.js"></script><script type="module" src="./app.mjs"></script>
+</head>
+<body>
+<svg class="icon-definitions" aria-hidden="true"><defs>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v10H3Z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 17H2Z"/><path d="M12 9v4m0 4h.01"/></symbol>
+  <symbol id="i-radio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4m8.4 0a6 6 0 0 0 0-8.4M4.9 4.9a10 10 0 0 0 0 14.2m14.2 0a10 10 0 0 0 0-14.2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6m1 4a5 5 0 0 1 3 5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9Z"/><path d="M17 9a4 4 0 0 1 0 6m2.5-8.5a8 8 0 0 1 0 11"/></symbol>
+</defs></svg>
+<a href="#main" class="skip-link">Ir al contenido</a>
+
+<header class="site-header">
+  <a class="brand" href="#inicio" aria-label="SmartTourism, inicio"><span class="brand-mark">ST</span><span><strong>SmartTourism</strong><small>Cuevas de Taulabé</small></span></a>
+  <nav aria-label="Secciones principales">
+    <button class="nav-item active" data-page="overview"><svg><use href="#i-home"/></svg>Resumen</button>
+    <button class="nav-item" data-page="events"><svg><use href="#i-list"/></svg>Movimientos <span id="eventCount" class="nav-count">—</span></button>
+    <button class="nav-item" data-page="alerts"><svg><use href="#i-alert"/></svg>Alertas</button>
+    <button class="nav-item" data-page="connection"><svg><use href="#i-radio"/></svg>Conectar Wokwi <span id="navDot" class="status-dot"></span></button>
+  </nav>
+</header>
+
+<main id="main" class="page-shell">
+  <div class="page-heading"><div><span id="breadcrumb" class="eyebrow">Resumen</span><h1 id="pageTitle">Control de visitas</h1><p id="pageDescription">Mira el aforo, las entradas y las salidas de forma sencilla.</p></div></div>
+  <div id="appError" class="message error" role="alert" hidden></div>
+
+  <section id="sourcePicker" class="source-picker" aria-labelledby="sourceTitle">
+    <div class="source-intro"><h2 id="sourceTitle">¿Qué datos quieres ver?</h2><p>Elige una opción. Puedes cambiarla cuando quieras.</p></div>
+    <div class="mode-switch" role="group" aria-label="Origen de los datos">
+      <button data-mode="history" class="selected"><strong>Datos guardados</strong><span>Los CSV del proyecto</span></button>
+      <button data-mode="demo"><strong>Probar el sistema</strong><span>Simula entradas y salidas</span></button>
+      <button data-mode="live"><strong>Wokwi en vivo</strong><span>Datos del ESP32</span></button>
+    </div>
+    <div class="source-line"><span id="sourceBadge" class="source-badge">DATOS GUARDADOS</span><span id="sourceNote">Cargando datos…</span><span id="connectionPill" class="connection-pill" hidden>Desconectado</span></div>
+  </section>
+
+  <section id="alertTools" class="alert-tools" aria-label="Configuración de alertas">
+    <div class="alert-tools-copy"><span class="alert-tools-dot"></span><span><strong>Alertas visuales activas</strong><small>La página avisará cuando el aforo llegue al 80% o exista un evento para revisar.</small></span></div>
+    <button id="audioToggle" class="button secondary" type="button" aria-pressed="false"><svg><use href="#i-sound"/></svg><span id="audioToggleText">Activar sonido</span></button>
+  </section>
+  <section id="activeAlert" class="active-alert" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+    <span class="active-alert-icon"><svg><use href="#i-alert"/></svg></span>
+    <div class="active-alert-copy"><span id="activeAlertLabel">ALERTA ACTIVA</span><h2 id="activeAlertTitle">Aforo alto</h2><p id="activeAlertMessage"></p></div>
+    <button id="openAlerts" class="button secondary" type="button">Ver alertas</button>
+  </section>
+
+  <section id="demoControls" class="action-panel demo-controls" hidden><div><h2>Prueba el contador</h2><p>Pulsa un botón para ver cómo cambia el aforo.</p></div><div class="demo-buttons"><button id="demoEntry" class="button primary big">+ Registrar entrada</button><button id="demoExit" class="button secondary big">− Registrar salida</button><button id="demoIncomplete" class="button ghost">Paso incompleto</button><button id="demoReset" class="text-button">Reiniciar</button></div></section>
+  <section id="livePrompt" class="message" hidden><svg><use href="#i-radio"/></svg><span id="livePromptText">Primero conecta la página con Wokwi.</span><button class="button primary" id="goConnect">Ir a conectar</button></section>
+
+  <section id="overviewPanel">
+    <div class="main-summary">
+      <article class="occupancy-card card"><div class="card-heading"><div><h2 id="occupancyTitle">Personas dentro</h2><p id="occupancySubtitle">Según el último registro</p></div><span id="occupancyStatus" class="badge normal">Sin datos</span></div><div class="occupancy-main"><div class="gauge-wrap"><svg id="gauge" viewBox="0 0 240 155" role="img" aria-label="Ocupación"><path class="gauge-track" d="M25 127 A95 95 0 0 1 215 127"/><path id="gaugeFill" class="gauge-fill" d="M25 127 A95 95 0 0 1 215 127" pathLength="100"/><text x="120" y="100" text-anchor="middle" class="gauge-number" id="gaugeNumber">—</text><text x="120" y="125" text-anchor="middle" class="gauge-label" id="gaugeLabel">de 10 personas</text></svg></div><div class="occupancy-copy"><strong><span id="availableSpots">—</span> lugares disponibles</strong><span id="occupancyPercent">—</span><p id="lastSeen">Esperando datos</p></div></div></article>
+      <div class="metrics">
+        <article class="metric"><span class="metric-icon green"><svg><use href="#i-users"/></svg></span><div><span>Entraron</span><strong id="entriesMetric">—</strong><small>entradas aceptadas</small></div></article>
+        <article class="metric"><span class="metric-icon blue"><svg><use href="#i-arrow"/></svg></span><div><span>Salieron</span><strong id="exitsMetric">—</strong><small>salidas aceptadas</small></div></article>
+        <article class="metric"><span class="metric-icon amber"><svg><use href="#i-alert"/></svg></span><div><span>Alertas</span><strong id="alertsMetric">—</strong><small id="alertsFoot">requieren atención</small></div></article>
+        <article class="metric compact-metric"><div><span>Máximo registrado</span><strong><span id="maxMetric">—</span><small id="capacityMetric"> / 10</small></strong></div></article>
+      </div>
+    </div>
+    <article class="card trend-card"><div class="card-heading"><div><h2>Entradas y salidas por día</h2><p id="flowSubtitle">Compara fácilmente el movimiento de visitantes.</p></div><span class="muted-label" id="periodCount">— días</span></div><div class="chart-legend"><span><i class="swatch green-bg"></i>Entradas</span><span><i class="swatch light-green-bg"></i>Salidas</span></div><div id="flowChart" class="chart-container"></div><div class="chart-footer"><svg><use href="#i-info"/></svg><span id="flowFooter">Los datos se agrupan por día.</span></div></article>
+    <article class="card history-chart secondary-chart"><div class="card-heading"><div><h2>Ocupación promedio</h2><p id="occupancyChartSubtitle">Promedio de los registros de cada día.</p></div><span class="chart-key"><i class="swatch green-bg"></i>Personas</span></div><div id="occupancyChart" class="chart-container compact"></div></article>
+  </section>
+
+  <details id="advancedOptions" class="advanced-options"><summary>Más opciones: fechas e importar archivo</summary><div class="advanced-body"><div class="date-controls" id="dateControls"><label>Desde <input id="fromDate" type="date"></label><label>Hasta <input id="toDate" type="date"></label><button class="text-button" id="allDates">Ver todas las fechas</button></div><button class="button secondary" id="importButton"><svg><use href="#i-upload"/></svg>Importar archivo</button><input type="file" id="importFile" accept=".csv,.json,.jsonl,.txt" hidden></div></details>
+
+  <section id="eventsPanel" class="card events-card"><div class="card-heading events-heading"><div><h2 id="eventsTitle">Últimos movimientos</h2><p id="eventsSubtitle">Las entradas y salidas más recientes.</p></div><div class="table-actions"><button class="text-button" id="viewAll">Ver todos</button><button class="button secondary small" id="exportButton"><svg><use href="#i-download"/></svg>Descargar CSV</button></div></div><div class="table-filters"><label class="search-field"><svg><use href="#i-search"/></svg><input id="searchInput" placeholder="Buscar movimiento…"></label><select id="directionFilter"><option value="">Entradas y salidas</option><option value="entrada">Solo entradas</option><option value="salida">Solo salidas</option><option value="indeterminada">Pasos incompletos</option></select><select id="validationFilter"><option value="">Todos los resultados</option><option value="ACEPTADO">Aceptados</option><option value="RECHAZADO">Rechazados</option><option value="REVISAR_DATOS">Para revisar</option></select><button id="clearFilters" class="text-button">Quitar filtros</button></div><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Personas dentro</th><th>Resultado</th><th>Detalle</th></tr></thead><tbody id="eventsBody"></tbody></table></div><div class="table-footer"><span id="tableCount">Cargando…</span><div class="pagination"><button id="previousPage">←</button><span id="pageCount">1 / 1</span><button id="nextPage">→</button></div></div></section>
+
+  <section id="connectionPanel" hidden>
+    <div class="connection-layout">
+      <article class="card"><div class="card-heading"><div><h2>1. Conecta la página</h2><p>Usaremos el mismo canal que tiene tu ESP32.</p></div><span id="brokerStatus" class="badge neutral">Desconectado</span></div><div class="form-body"><label for="topicInput">Canal del proyecto</label><input id="topicInput" spellcheck="false"><div class="form-actions"><button id="connectButton" class="button primary big"><svg><use href="#i-radio"/></svg>Conectar ahora</button><button id="disconnectButton" class="button secondary" disabled>Desconectar</button></div><p id="mqttFeedback" class="connection-feedback">Pulsa “Conectar ahora”.</p><div class="connection-stats"><div><span>Señal del ESP32</span><strong id="deviceStatus">Sin señal</strong></div><div><span>Eventos recibidos</span><strong id="receivedCount">0</strong></div><div class="technical-stat"><span>Mensajes descartados</span><strong id="invalidCount">0</strong></div></div></div></article>
+      <article class="card"><div class="card-heading"><div><h2>2. Prepara Wokwi</h2><p>Descarga y copia estos archivos en tu proyecto.</p></div></div><ol class="simple-steps"><li><span>1</span><div><strong>Descarga los archivos</strong><div class="download-links"><a href="./firmware/sketch.ino" download>sketch.ino</a><a href="./firmware/libraries.txt" download>libraries.txt</a><a href="./firmware/diagram.json" download>diagram.json</a></div></div></li><li><span>2</span><div><strong>Descarga la configuración</strong><button id="downloadConfig" class="button secondary small"><svg><use href="#i-download"/></svg>Descargar config.h</button></div></li><li><span>3</span><div><strong>Inicia Wokwi</strong><p>Pulsa ▶ en Wokwi. Cuando aparezca “Señal reciente”, vuelve al Resumen y elige “Wokwi en vivo”.</p></div></li></ol></article>
+    </div>
+    <details class="help-box"><summary>¿Necesitas más ayuda?</summary><p>Los cuatro archivos deben tener exactamente esos nombres en Wokwi. Este canal público debe usarse solo con datos simulados.</p><div class="download-links"><a href="./data/eventos_iot.csv" download>Descargar eventos guardados</a><a href="https://wokwi.com/projects/479635156414370817" target="_blank" rel="noopener noreferrer">Abrir Wokwi</a></div></details>
+  </section>
+  <footer><span>SmartTourism · Equipo 2</span><span>Capacidad de prueba: 10 personas</span></footer>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<noscript><div class="noscript">Activa JavaScript para ver los datos.</div></noscript>
+</body></html>

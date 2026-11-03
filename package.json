@@ -1,0 +1,22 @@
+{
+  "name": "smart-tourism",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Panel de aforo SmartTourism y conexión MQTT con Wokwi",
+  "scripts": {
+    "start": "node web/server.mjs",
+    "dev": "node web/server.mjs",
+    "sync-data": "node web/scripts/sync-data.mjs",
+    "test": "node --test web/test",
+    "test:ui": "node web/scripts/check-ui.mjs",
+    "test:mqtt": "node web/scripts/check-mqtt.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "mqtt": "5.16.1",
+    "playwright": "1.64.1"
+  }
+}

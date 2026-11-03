@@ -1,0 +1,13 @@
+node_modules/
+.site-publish/
+.site-artifacts/
+.pio/
+__pycache__/
+*.pyc
+web/.sites-runtime/
+web/.sites-checkout/
+debug.log
+.tools/
+.site-publish-next/
+.vscode/
+Configuracion Wokwi/

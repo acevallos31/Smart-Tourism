@@ -1,6 +1,13 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <esp_random.h>
+#include <atomic>
+#include "config.h"
+
+// Revision de compilacion Wokwi: 2026-11-02-01
 
 // Smart-Tourism | Equipo 2 | Simulacion de acceso bidireccional
 // Capacidad hipotetica para facilitar las pruebas: 10 personas.
@@ -16,6 +23,67 @@ constexpr unsigned long ANTIRREBOTE_MS = 60;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 int ocupacion = 0;
 unsigned long secuencia = 0;
+char sessionId[17];
+struct MensajeMQTT { char json[768]; };
+QueueHandle_t colaEventos = nullptr;
+std::atomic<int> ocupacionPublicada{0};
+std::atomic<unsigned long> secuenciaPublicada{0};
+std::atomic<unsigned long> eventosDescartados{0};
+
+// Las conexiones de red pueden bloquear. Esta tarea mantiene ese trabajo
+// fuera del loop de sensores, y una cola conserva hasta 32 eventos pendientes.
+void tareaRed(void*) {
+  WiFiClient transporte;
+  PubSubClient mqtt(transporte);
+  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  mqtt.setSocketTimeout(2);
+  mqtt.setKeepAlive(20);
+  if (!mqtt.setBufferSize(1024)) {
+    Serial.println("MQTT: memoria insuficiente; el conteo local continua.");
+    vTaskDelete(nullptr);
+    return;
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD, 6);
+  char clienteId[48];
+  snprintf(clienteId, sizeof(clienteId), "smartaforo-%s", sessionId);
+  char topicEstado[200];
+  snprintf(topicEstado, sizeof(topicEstado), "%s", MQTT_TOPIC);
+  char* sufijo = strrchr(topicEstado, '/');
+  if (sufijo && strcmp(sufijo, "/events") == 0) strcpy(sufijo, "/status");
+  unsigned long ultimoIntento = millis() - 5000;
+  unsigned long ultimoLatido = millis() - 10000;
+  for (;;) {
+    const unsigned long ahora = millis();
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!mqtt.connected() && ahora - ultimoIntento >= 5000) {
+        ultimoIntento = ahora;
+        if (mqtt.connect(clienteId)) {
+          Serial.println("MQTT conectado: el panel puede recibir eventos.");
+          ultimoLatido = millis() - 10000;
+        }
+      }
+      if (mqtt.connected()) {
+        mqtt.loop();
+        MensajeMQTT pendiente;
+        if (xQueuePeek(colaEventos, &pendiente, 0) == pdTRUE &&
+            mqtt.publish(MQTT_TOPIC, pendiente.json, false)) {
+          xQueueReceive(colaEventos, &pendiente, 0);
+        }
+        if (millis() - ultimoLatido >= 10000) {
+          char estado[320];
+          snprintf(estado, sizeof(estado),
+                   "{\"type\":\"heartbeat\",\"deviceId\":\"ACCESO-01\",\"sessionId\":\"%s\",\"occupancy\":%d,\"capacity\":%d,\"sequence\":%lu,\"dropped\":%lu}",
+                   sessionId, ocupacionPublicada.load(), CAPACIDAD,
+                   secuenciaPublicada.load(), eventosDescartados.load());
+          mqtt.publish(topicEstado, estado, false);
+          ultimoLatido = millis();
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
 unsigned long inicioPaso = 0;
 unsigned long ultimoCambioA = 0, ultimoCambioB = 0;
 bool estadoA = HIGH, estadoB = HIGH;
@@ -48,9 +116,23 @@ void mostrarAforo() {
 
 void registrar(const char* direccion, const char* validacion, const char* motivo) {
   ++secuencia;
-  Serial.printf("{\"deviceId\":\"ACCESO-01\",\"eventId\":\"ACCESO-01-%06lu\",\"sequence\":%lu,\"timestamp_ms\":%lu,\"direction\":\"%s\",\"validation\":\"%s\",\"reason\":\"%s\",\"occupancy\":%d,\"capacity\":%d,\"alert\":\"%s\"}\n",
-                secuencia, secuencia, millis(), direccion, validacion, motivo,
-                ocupacion, CAPACIDAD, alertaActual());
+  ocupacionPublicada.store(ocupacion);
+  secuenciaPublicada.store(secuencia);
+  MensajeMQTT mensaje;
+  int longitud = snprintf(mensaje.json, sizeof(mensaje.json),
+                "{\"deviceId\":\"ACCESO-01\",\"eventId\":\"ACCESO-01-%s-%06lu\",\"sessionId\":\"%s\",\"sequence\":%lu,\"timestamp_ms\":%lu,\"direction\":\"%s\",\"validation\":\"%s\",\"reason\":\"%s\",\"occupancy\":%d,\"capacity\":%d,\"alert\":\"%s\"}",
+                sessionId, secuencia, sessionId, secuencia, millis(), direccion,
+                validacion, motivo, ocupacion, CAPACIDAD, alertaActual());
+  if (longitud < 0 || longitud >= static_cast<int>(sizeof(mensaje.json))) {
+    eventosDescartados.fetch_add(1);
+    Serial.println("Evento demasiado largo; el conteo local se conserva.");
+    return;
+  }
+  Serial.println(mensaje.json);
+  if (MQTT_HABILITADO && colaEventos && xQueueSend(colaEventos, &mensaje, 0) != pdTRUE) {
+    eventosDescartados.fetch_add(1);
+    Serial.println("Cola MQTT llena; consulta este evento en el monitor serial.");
+  }
 }
 
 void completarPaso(bool entrada) {
@@ -75,6 +157,8 @@ void completarPaso(bool entrada) {
 
 void setup() {
   Serial.begin(115200);
+  snprintf(sessionId, sizeof(sessionId), "%08lx%08lx",
+           static_cast<unsigned long>(esp_random()), static_cast<unsigned long>(esp_random()));
   pinMode(SENSOR_A, INPUT_PULLUP);
   pinMode(SENSOR_B, INPUT_PULLUP);
   pinMode(LED_VERDE, OUTPUT);
@@ -85,6 +169,12 @@ void setup() {
   lcd.backlight();
   mostrarAforo();
   Serial.println("Smart-Tourism: A->B entrada; B->A salida. Pulsar y soltar cada boton.");
+  if (MQTT_HABILITADO) {
+    colaEventos = xQueueCreate(32, sizeof(MensajeMQTT));
+    if (!colaEventos || xTaskCreatePinnedToCore(tareaRed, "red-mqtt", 6144, nullptr, 1, nullptr, 0) != pdPASS) {
+      Serial.println("No se pudo iniciar MQTT; el conteo local continua.");
+    }
+  }
 }
 
 void loop() {

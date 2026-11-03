@@ -1,0 +1,41 @@
+import { chromium } from 'playwright';
+import mqtt from 'mqtt';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import assert from 'node:assert/strict';
+import { createServer } from '../server.mjs';
+
+const session=randomUUID();const topic=`smart-tourism/qa/${session}/events`;
+const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');
+let browser,publisher;
+try{
+  browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL||'msedge',headless:true});
+  const page=await browser.newPage();await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.locator('[data-page="connection"]').click();await page.locator('#topicInput').fill(topic);await page.locator('#connectButton').click();
+  await page.waitForFunction(()=>document.querySelector('#brokerStatus').textContent==='Conectado',null,{timeout:25000});
+  publisher=mqtt.connect('mqtt://broker.emqx.io:1883',{connectTimeout:12000,reconnectPeriod:0});await once(publisher,'connect');
+  await page.locator('[data-page="overview"]').click();await page.locator('[data-mode="live"]').click();
+  const event={deviceId:'ACCESO-01',eventId:`QA-${session}-1`,sessionId:session,sequence:1,timestamp_ms:1000,direction:'entrada',validation:'ACEPTADO',reason:'A_B',occupancy:1,capacity:10};
+  await publisher.publishAsync(topic,JSON.stringify(event));
+  await page.waitForFunction(()=>document.querySelector('#gaugeNumber').textContent==='1');
+  await publisher.publishAsync(topic,JSON.stringify(event));
+  const heartbeat={type:'heartbeat',deviceId:'ACCESO-01',sessionId:session,occupancy:1,capacity:10,dropped:0};
+  await publisher.publishAsync(topic.replace('/events','/status'),JSON.stringify(heartbeat));
+  await publisher.publishAsync(topic,'{"invalid":true}');
+  await page.locator('[data-page="connection"]').click();await page.waitForFunction(()=>document.querySelector('#invalidCount').textContent==='1');
+  assert.equal(await page.locator('#receivedCount').textContent(),'1');assert.equal(await page.locator('#deviceStatus').textContent(),'Señal reciente');
+  await publisher.publishAsync(topic,JSON.stringify({...event,eventId:`QA-${session}-3`,sequence:3,occupancy:2}));
+  await page.waitForFunction(()=>document.querySelector('#receivedCount').textContent==='2');
+  await page.locator('[data-page="overview"]').click();await page.locator('[data-mode="live"]').click();assert.equal(await page.locator('#gaugeNumber').textContent(),'2');assert.match(await page.locator('#livePromptText').textContent(),/1 posibles eventos perdidos/);
+  await publisher.publishAsync(topic,JSON.stringify({...event,eventId:`QA-${session}-4`,sequence:4,occupancy:8}));
+  await page.waitForFunction(()=>document.querySelector('#gaugeNumber').textContent==='8');
+  assert.equal(await page.locator('#occupancyStatus').textContent(),'Precaución');assert.equal(await page.locator('#alertsMetric').textContent(),'1');assert.equal(await page.locator('#activeAlert').isVisible(),true);assert.equal(await page.locator('#activeAlertTitle').textContent(),'Aforo alto');
+  await publisher.publishAsync(topic,JSON.stringify({...event,eventId:`QA-${session}-5`,sequence:5,occupancy:10}));
+  await page.waitForFunction(()=>document.querySelector('#gaugeNumber').textContent==='10');assert.equal(await page.locator('#occupancyStatus').textContent(),'Completo');assert.equal(await page.locator('#activeAlert').isVisible(),true);assert.equal(await page.locator('#activeAlertTitle').textContent(),'Capacidad máxima');
+  await publisher.publishAsync(topic,JSON.stringify({...event,eventId:`QA-${session}-6`,sequence:6,occupancy:10,validation:'RECHAZADO',reason:'AFORO_MAXIMO'}));
+  await publisher.publishAsync(topic,JSON.stringify({...event,eventId:`QA-${session}-7`,sequence:7,occupancy:10,direction:'indeterminada',validation:'REVISAR_DATOS',reason:'PASO_INCOMPLETO'}));
+  await page.waitForFunction(()=>document.querySelector('#alertsMetric').textContent==='4');
+  await page.locator('[data-page="alerts"]').click();assert.match(await page.locator('#eventsBody').textContent(),/Paso incompleto/);assert.match(await page.locator('#alertsFoot').textContent(),/1 rechazados · 1 para revisión/);
+  await page.locator('[data-page="connection"]').click();await page.locator('#disconnectButton').click();assert.equal(await page.locator('#brokerStatus').textContent(),'Desconectado');
+  console.log('OK: MQTT real, aforo, alertas 80%/máximo, rechazos, pasos incompletos, duplicados, mensajes inválidos, saltos y señal.');
+}finally{publisher?.end(true);await browser?.close();server.close();}
