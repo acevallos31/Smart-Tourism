@@ -122,3 +122,9 @@ En **Power BI Desktop → Obtener datos → Texto/CSV**, selecciona los archivos
 - **Informe:** el repositorio incluye CSV, pero no un informe `.pbix`; las visualizaciones se crean en Power BI Desktop.
 - **Node.js:** `npm start` o `npm run dev` inicia el panel local. Los recursos web están incluidos; `npm ci` instala las herramientas de desarrollo y pruebas.
 - **Ejecución local del firmware:** `platformio.ini` permite compilar con `pio run`. Para simular puedes seguir usando Wokwi web.
+
+## PostgreSQL y despliegue reproducible
+
+La rama `feature/postgresql-persistence` incorpora persistencia PostgreSQL, consumidor MQTT independiente y aforo por sesión. La instalación **no requiere Proxmox**: puede ejecutarse con Node.js 20+ y PostgreSQL en otra computadora. Consulta la **[guía de instalación local y systemd](deploy/README.md)** y las [migraciones de base de datos](db/README.md).
+
+En el laboratorio se verificaron 2.000 eventos sintéticos importados y un evento nuevo de Wokwi en una sesión independiente. El consumidor MQTT sigue ejecutándose aunque el panel no esté abierto. Los servicios `deploy/systemd/` son plantillas para instalaciones nuevas; no sustituyen automáticamente los servicios del contenedor existente.
