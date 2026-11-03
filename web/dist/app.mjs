@@ -164,13 +164,17 @@ async function importFile(file) {
 }
 
 function renderConnection() {
-  const status=state.connected?'Conectado':state.connecting?'Conectando…':'Desconectado';
-  $('brokerStatus').textContent=status;$('brokerStatus').className=`badge ${state.connected?'normal':'neutral'}`;$('connectionPill').textContent=`Broker: ${status.toLowerCase()}`;
-  $('navDot').classList.toggle('online',state.connected);$('connectButton').disabled=state.connected||state.connecting;$('disconnectButton').disabled=!state.client;$('topicInput').disabled=Boolean(state.client);
   const fresh=state.lastSeen && Date.now()-state.lastSeen<30000;
+  const simulatorState=state.connected&&fresh?'online':state.connected?'waiting':'offline';
+  const status=simulatorState==='online'?'Simulador conectado':simulatorState==='waiting'?'Esperando simulador':state.connecting?'Conectando…':'Desconectado';
+  $('brokerStatus').textContent=status;$('brokerStatus').className=`badge ${simulatorState==='online'?'normal':simulatorState==='waiting'?'warning':'neutral'}`;$('connectionPill').textContent=status;
+  $('navDot').classList.toggle('online',simulatorState==='online');$('navDot').classList.toggle('waiting',simulatorState==='waiting');$('connectButton').disabled=state.connected||state.connecting;$('disconnectButton').disabled=!state.client;$('topicInput').disabled=Boolean(state.client);
   $('deviceStatus').textContent=state.connected&&fresh?'Señal reciente':state.lastSeen?'Sin señal reciente':'Sin señal';
   $('receivedCount').textContent=number(state.received);$('invalidCount').textContent=number(state.invalid);
-  $('livePromptText').textContent = state.connected ? fresh ? `Recibiendo señal del dispositivo${state.gaps?` · ${state.gaps} posibles eventos perdidos`:''}.` : 'Conectado al broker. Esperando señal reciente del ESP32.' : 'Conecta el panel al canal MQTT para recibir eventos de Wokwi.';
+  const titles={online:'Conexión exitosa con Wokwi',waiting:'Esperando señal del simulador',offline:'Simulador desconectado'};
+  const messages={online:`Recibiendo datos del ESP32${state.gaps?` · ${state.gaps} posibles eventos perdidos`:''}.`,waiting:'La página está lista. Inicia Wokwi y pulsa ▶ para recibir la señal.',offline:'Conecta el panel para recibir los datos de Wokwi.'};
+  $('simulatorConnection').className=`simulator-connection ${simulatorState}`;$('simulatorConnectionTitle').textContent=titles[simulatorState];$('simulatorConnectionText').textContent=messages[simulatorState];
+  $('livePrompt').className=`simulator-banner ${simulatorState}`;$('simulatorBannerTitle').textContent=titles[simulatorState];$('livePromptText').textContent=messages[simulatorState];$('goConnect').hidden=simulatorState==='online';$('goConnect').textContent=simulatorState==='waiting'?'Ver conexión':'Conectar Wokwi';
 }
 
 function connect() {

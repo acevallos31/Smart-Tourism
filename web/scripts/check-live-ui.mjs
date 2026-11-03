@@ -12,7 +12,8 @@ try{
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL||'msedge',headless:true});
   const page=await browser.newPage();await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.locator('[data-page="connection"]').click();await page.locator('#topicInput').fill(topic);await page.locator('#connectButton').click();
-  await page.waitForFunction(()=>document.querySelector('#brokerStatus').textContent==='Conectado',null,{timeout:25000});
+  await page.waitForFunction(()=>document.querySelector('#brokerStatus').textContent==='Esperando simulador',null,{timeout:25000});
+  assert.equal(await page.locator('#simulatorConnectionTitle').textContent(),'Esperando señal del simulador');
   publisher=mqtt.connect('mqtt://broker.emqx.io:1883',{connectTimeout:12000,reconnectPeriod:0});await once(publisher,'connect');
   await page.locator('[data-page="overview"]').click();await page.locator('[data-mode="live"]').click();
   const event={deviceId:'ACCESO-01',eventId:`QA-${session}-1`,sessionId:session,sequence:1,timestamp_ms:1000,direction:'entrada',validation:'ACEPTADO',reason:'A_B',occupancy:1,capacity:10};
@@ -21,6 +22,8 @@ try{
   await publisher.publishAsync(topic,JSON.stringify(event));
   const heartbeat={type:'heartbeat',deviceId:'ACCESO-01',sessionId:session,occupancy:1,capacity:10,dropped:0};
   await publisher.publishAsync(topic.replace('/events','/status'),JSON.stringify(heartbeat));
+  await page.waitForFunction(()=>document.querySelector('#brokerStatus').textContent==='Simulador conectado');
+  assert.equal(await page.locator('#simulatorConnectionTitle').textContent(),'Conexión exitosa con Wokwi');
   await publisher.publishAsync(topic,'{"invalid":true}');
   await page.locator('[data-page="connection"]').click();await page.waitForFunction(()=>document.querySelector('#invalidCount').textContent==='1');
   assert.equal(await page.locator('#receivedCount').textContent(),'1');assert.equal(await page.locator('#deviceStatus').textContent(),'Señal reciente');

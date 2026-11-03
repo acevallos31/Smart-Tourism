@@ -37,9 +37,9 @@ try{
   await page.locator('#demoExit').click();assert.equal(await page.locator('#gaugeNumber').textContent(),'9');
   await page.locator('#demoIncomplete').click();assert.match(await page.locator('#eventsBody').textContent(),/Paso incompleto/);assert.equal(await page.locator('#activeAlertTitle').textContent(),'Movimiento para revisar');
   await page.locator('[data-page="alerts"]').click();assert.match(await page.locator('#eventsBody').textContent(),/Revisar datos/);
-  await page.locator('[data-page="connection"]').click();
+  await page.locator('[data-page="connection"]').click();assert.equal(await page.locator('#simulatorConnectionTitle').textContent(),'Simulador desconectado');await page.screenshot({path:path.join(artifactPath,'connection-desktop.png'),fullPage:true});
   const [configDownload]=await Promise.all([page.waitForEvent('download'),page.locator('#downloadConfig').click()]);assert.equal(configDownload.suggestedFilename(),'config.h');
-  await page.locator('[data-page="overview"]').click();await page.locator('[data-mode="live"]').click();assert.equal(await page.locator('#gaugeNumber').textContent(),'—');
+  await page.locator('[data-page="overview"]').click();await page.locator('[data-mode="live"]').click();assert.equal(await page.locator('#gaugeNumber').textContent(),'—');assert.equal(await page.locator('#simulatorBannerTitle').textContent(),'Simulador desconectado');
   await page.reload();await page.waitForFunction(()=>document.querySelector('#eventCount').textContent.replace(/\D/g,'')==='2000');
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'Sin desbordamiento horizontal en móvil');
