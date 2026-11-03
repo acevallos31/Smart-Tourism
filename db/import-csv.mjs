@@ -22,7 +22,7 @@ async function main() {
     await client.query('BEGIN');
     const devices = await client.query('SELECT id, device_id FROM dispositivos');
     const ids = new Map(devices.rows.map(row => [row.device_id, row.id]));
-    for (const e of events) {
+    for (const [index, e] of events.entries()) {
       const deviceId = ids.get(e.deviceId);
       if (!deviceId) throw new Error('Dispositivo no registrado: ' + e.deviceId);
       const result = await client.query(
@@ -31,7 +31,7 @@ async function main() {
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         ON CONFLICT DO NOTHING RETURNING id`,
         [deviceId,e.sessionId,e.eventId,e.sequence,e.timestamp,e.direction,e.validation,e.reason,e.occupancy,e.capacity,e.alert,
-         JSON.stringify({ ...rows[events.indexOf(e)], sessionId, fuente:'CSV_SINTETICO' })]
+         JSON.stringify({ ...rows[index], sessionId, fuente:'CSV_SINTETICO' })]
       );
       if (!result.rowCount) { duplicates++; continue; }
       inserted++;
