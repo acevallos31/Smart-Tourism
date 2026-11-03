@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart-Tourism - Consumidor MQTT
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=smarttourism
+Group=smarttourism
+WorkingDirectory=/opt/smart-tourism
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/smart-tourism/database.env
+ExecStart=/usr/bin/node /opt/smart-tourism/web/mqtt-worker.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
