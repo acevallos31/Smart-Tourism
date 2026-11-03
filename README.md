@@ -67,6 +67,33 @@ Si aparece `LiquidCrystal_I2C.h: No such file or directory`, agrega **LiquidCrys
 
 Los archivos de Wokwi están en `wokwi/`: `sketch.ino`, `diagram.json`, `libraries.txt` y `config.h`. El programa conectado mantiene LCD y serial, y añade el envío MQTT en una tarea separada. Cada reinicio crea una sesión nueva.
 
+
+## Alertas automáticas por WhatsApp (n8n + WAHA)
+
+Además del panel, se probó un flujo de notificaciones para el prototipo con **MQTT → n8n → WAHA → grupo de WhatsApp**. El flujo también admite eventos por HTTP mediante un Webhook alternativo.
+
+- **Normal (0–7 de 10):** no envía mensajes repetitivos mientras el nivel no cambie.
+- **Advertencia (8–9 de 10):** notifica al entrar al nivel de advertencia (80 %).
+- **Capacidad máxima (10 de 10):** notifica cuando se alcanza el límite simulado.
+- **Descenso de nivel:** notifica cuando cambia de máximo a advertencia o regresa a normal.
+- **Revisión de datos:** genera un aviso cuando recibe un evento marcado como `REVISAR_DATOS`.
+
+La capacidad de **10 personas es ficticia y exclusiva de la demostración**; no representa el aforo oficial de las Cuevas de Taulabé. Las alertas son informativas y no controlan físicamente el acceso.
+
+### Flujo de n8n
+
+El archivo [`n8n/smart-tourism-alertas-waha.json`](n8n/smart-tourism-alertas-waha.json) contiene una **plantilla importable sin claves API ni credenciales MQTT**. No se deben publicar exportaciones con secretos reales.
+
+Para utilizarla:
+
+1. Importa el JSON en n8n y configura una credencial MQTT con acceso al broker utilizado por el ESP32.
+2. Revisa el tópico del nodo **MQTT Trigger**; debe coincidir con el tópico de publicación del firmware.
+3. Configura el nodo **Enviar WhatsApp WAHA**: URL alcanzable desde n8n, clave API mediante credencial de encabezado `X-Api-Key` (sin almacenarla en el repositorio), sesión de WAHA y el `chatId` del grupo de destino terminado en `@g.us`.
+4. Comprueba que el cuerpo de la petición use la expresión `$json.message` para enviar el texto generado por el nodo de evaluación.
+5. Activa el flujo y prueba transiciones de aforo **7 → 8 → 10 → 9 → 7** desde Wokwi. Comprueba el resultado tanto en las ejecuciones de n8n como en el grupo de WhatsApp.
+
+**Nota:** la plantilla se publica desactivada y con valores de ejemplo para evitar envíos accidentales. El entorno del laboratorio requiere un broker MQTT y una instancia WAHA accesibles desde n8n. El estado de deduplicación se conserva con datos estáticos del workflow; para un despliegue real sería recomendable añadir persistencia externa y reintentos confirmados de entrega.
+
 ## Generar los datos para Power BI
 
 Los cuatro CSV de ejemplo ya están en `powerbi/data/`; puedes importarlos sin ejecutar Python. Para regenerarlos necesitas **Python 3**. El generador usa únicamente la biblioteca estándar, sin dependencias de `pip`.
