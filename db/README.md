@@ -42,3 +42,9 @@ curl -s http://127.0.0.1:3001/api/events?limit=2
 ```
 
 La API es de **solo lectura** y muestra hasta 10.000 eventos recientes. No expongas esta API públicamente si contiene datos personales o sensibles; en esta fase se usan datos sintéticos. Los modos CSV, demostración y Wokwi continúan disponibles.
+
+## Persistencia MQTT por sesión
+
+La migración `002_estado_sesiones.sql` crea `estado_aforo_sesiones` con clave `(dispositivo_id, session_id)`. El consumidor `npm run mqtt:worker` reutiliza el tópico MQTT del firmware, guarda los eventos en `eventos_iot` y actualiza el aforo de cada sesión sin mezclar simuladores. El `eventId` y la secuencia por sesión impiden duplicados. Para ejecutar en Proxmox, configurar un servicio systemd independiente con `DATABASE_URL`, `MQTT_URL` y `MQTT_TOPIC` (opcional; los valores predeterminados coinciden con Wokwi). No publicar contraseñas en Git.
+
+Para activar en un entorno existente: `git pull`, `npm install`, `npm run db:migrate` y después iniciar el consumidor. La API y el dashboard pueden seguir funcionando durante la migración.
