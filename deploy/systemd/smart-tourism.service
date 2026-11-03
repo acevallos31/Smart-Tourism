@@ -1,0 +1,21 @@
+[Unit]
+Description=Smart-Tourism - Panel IoT
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=smarttourism
+Group=smarttourism
+WorkingDirectory=/opt/smart-tourism
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+EnvironmentFile=/etc/smart-tourism/database.env
+ExecStart=/usr/bin/node /opt/smart-tourism/web/server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
