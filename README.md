@@ -70,29 +70,16 @@ Los archivos de Wokwi están en `wokwi/`: `sketch.ino`, `diagram.json`, `librari
 
 ## Alertas automáticas por WhatsApp (n8n + WAHA)
 
-Además del panel, se probó un flujo de notificaciones para el prototipo con **MQTT → n8n → WAHA → grupo de WhatsApp**. El flujo también admite eventos por HTTP mediante un Webhook alternativo.
+El prototipo envía eventos desde **Wokwi ESP32 → broker MQTT → n8n → WAHA → WhatsApp**. Se probó el envío de advertencias, capacidad máxima y pasos incompletos con **varias sesiones** de Wokwi; cada mensaje identifica `sessionId` y `deviceId`.
 
-- **Normal (0–7 de 10):** no envía mensajes repetitivos mientras el nivel no cambie.
-- **Advertencia (8–9 de 10):** notifica al entrar al nivel de advertencia (80 %).
-- **Capacidad máxima (10 de 10):** notifica cuando se alcanza el límite simulado.
-- **Descenso de nivel:** notifica cuando cambia de máximo a advertencia o regresa a normal.
-- **Revisión de datos:** genera un aviso cuando recibe un evento marcado como `REVISAR_DATOS`.
+- Los nodos MQTT Trigger y Webhook Smart-Tourism desembocan en **Evaluar aforo y cambios**, luego en **¿Enviar alerta?** y **Enviar WhatsApp WAHA**.
+- Cada simulador tiene estado propio mediante la clave `deviceId:sessionId` y control de secuencia. Se notifica el cambio a 80 %, 100 %, la normalización y `REVISAR_DATOS`; no se repiten avisos por cada lectura del mismo nivel.
+- La plantilla [`n8n/smart-tourism-alertas-waha.json`](n8n/smart-tourism-alertas-waha.json) está **desactivada y sin secretos**; configura MQTT, WAHA y el grupo receptor en el servidor.
+- Los datos que llegan por MQTT se guardan por separado en PostgreSQL mediante `smart-tourism-mqtt.service`. **n8n no escribe directamente en PostgreSQL** en este flujo.
 
-La capacidad de **10 personas es ficticia y exclusiva de la demostración**; no representa el aforo oficial de las Cuevas de Taulabé. Las alertas son informativas y no controlan físicamente el acceso.
+**[Arquitectura completa, diagramas Mermaid y procedimientos de n8n](docs/n8n-alertas-por-sesion.md)**
 
-### Flujo de n8n
-
-El archivo [`n8n/smart-tourism-alertas-waha.json`](n8n/smart-tourism-alertas-waha.json) contiene una **plantilla importable sin claves API ni credenciales MQTT**. No se deben publicar exportaciones con secretos reales.
-
-Para utilizarla:
-
-1. Importa el JSON en n8n y configura una credencial MQTT con acceso al broker utilizado por el ESP32.
-2. Revisa el tópico del nodo **MQTT Trigger**; debe coincidir con el tópico de publicación del firmware.
-3. Configura el nodo **Enviar WhatsApp WAHA**: URL alcanzable desde n8n, clave API mediante credencial de encabezado `X-Api-Key` (sin almacenarla en el repositorio), sesión de WAHA y el `chatId` del grupo de destino terminado en `@g.us`.
-4. Comprueba que el cuerpo de la petición use la expresión `$json.message` para enviar el texto generado por el nodo de evaluación.
-5. Activa el flujo y prueba transiciones de aforo **7 → 8 → 10 → 9 → 7** desde Wokwi. Comprueba el resultado tanto en las ejecuciones de n8n como en el grupo de WhatsApp.
-
-**Nota:** la plantilla se publica desactivada y con valores de ejemplo para evitar envíos accidentales. El entorno del laboratorio requiere un broker MQTT y una instancia WAHA accesibles desde n8n. El estado de deduplicación se conserva con datos estáticos del workflow; para un despliegue real sería recomendable añadir persistencia externa y reintentos confirmados de entrega.
+La capacidad de 10 es hipotética, solo para demostración; no corresponde al aforo oficial de las Cuevas de Taulabé. El estado estático de n8n no ofrece garantías transaccionales de concurrencia; para producción se recomienda persistir las alertas y su entrega en PostgreSQL.
 
 ## Generar los datos para Power BI
 
@@ -125,6 +112,6 @@ En **Power BI Desktop → Obtener datos → Texto/CSV**, selecciona los archivos
 
 ## PostgreSQL y despliegue reproducible
 
-La rama `feature/postgresql-persistence` incorpora persistencia PostgreSQL, consumidor MQTT independiente y aforo por sesión. La instalación **no requiere Proxmox**: puede ejecutarse con Node.js 20+ y PostgreSQL en otra computadora. Consulta la **[guía de instalación local y systemd](deploy/README.md)** y las [migraciones de base de datos](db/README.md).
+La rama `feature/postgresql-persistence` incorpora persistencia PostgreSQL, consumidor MQTT independiente y aforo por sesión. La instalación **no requiere Proxmox**: puede ejecutarse con Node.js 20+ y PostgreSQL en otra computadora. Consulta la **[guía de instalación local y systemd](deploy/README.md)**, las [migraciones de base de datos](db/README.md) y la [guía de inicialización, respaldo y restauración PostgreSQL](db/RESTORE.md).
 
-En el laboratorio se verificaron 2.000 eventos sintéticos importados y un evento nuevo de Wokwi en una sesión independiente. El consumidor MQTT sigue ejecutándose aunque el panel no esté abierto. Los servicios `deploy/systemd/` son plantillas para instalaciones nuevas; no sustituyen automáticamente los servicios del contenedor existente.
+En el laboratorio se verificaron 2.000 eventos sintéticos importados y varios eventos de sesiones Wokwi independientes. El consumidor MQTT sigue ejecutándose aunque el panel no esté abierto. Los servicios `deploy/systemd/` son plantillas para instalaciones nuevas; no sustituyen automáticamente los servicios del contenedor existente.
