@@ -48,3 +48,10 @@ La API es de **solo lectura** y muestra hasta 10.000 eventos recientes. No expon
 La migración `002_estado_sesiones.sql` crea `estado_aforo_sesiones` con clave `(dispositivo_id, session_id)`. El consumidor `npm run mqtt:worker` reutiliza el tópico MQTT del firmware, guarda los eventos en `eventos_iot` y actualiza el aforo de cada sesión sin mezclar simuladores. El `eventId` y la secuencia por sesión impiden duplicados. Para ejecutar en Proxmox, configurar un servicio systemd independiente con `DATABASE_URL`, `MQTT_URL` y `MQTT_TOPIC` (opcional; los valores predeterminados coinciden con Wokwi). No publicar contraseñas en Git.
 
 Para activar en un entorno existente: `git pull`, `npm install`, `npm run db:migrate` y después iniciar el consumidor. La API y el dashboard pueden seguir funcionando durante la migración.
+
+## Restauración inicial y recuperación
+
+Para recrear la base **desde cero**, ejecutar las migraciones `db/001_init.sql` y `db/002_estado_sesiones.sql` mediante `npm run db:migrate` y después importar los **2.000 eventos sintéticos** mediante `npm run db:import-csv`. Para conservar sesiones recibidas previamente se requiere un respaldo propio con `pg_dump`.
+
+El procedimiento completo (base limpia, `pg_dump -Fc`, `pg_restore` en base de prueba, verificaciones, límites y permisos) está en **[RESTORE.md](RESTORE.md)**. No se incluye un dump de datos reales en el repositorio.
+
