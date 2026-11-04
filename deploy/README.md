@@ -85,4 +85,10 @@ No ejecutes dos consumidores simultáneos contra el mismo tópico sin un diseño
 
 ## Limitaciones
 
-La conexión MQTT usa QoS 0 sobre un broker público: no garantiza entrega ni privacidad. Los datos CSV son simulados, no mediciones reales de las Cuevas de Taulabé. La separación de sesiones fue validada con histórico y una sesión Wokwi; la prueba de dos simuladores concurrentes sigue pendiente.
+La conexión MQTT usa QoS 0 sobre un broker público: no garantiza entrega ni privacidad. Los datos CSV son simulados, no mediciones reales de las Cuevas de Taulabé. La separación de sesiones en PostgreSQL fue comprobada con dos simuladores Wokwi; también se observaron notificaciones WhatsApp etiquetadas por sesión mediante n8n/WAHA. No se ha efectuado una prueba de carga ni demostrado atomicidad del estado interno de n8n.
+
+## Recuperación y flujos de notificación
+
+- **[Inicialización/restore de PostgreSQL](../db/RESTORE.md)**: esquema SQL, carga histórica, respaldo personalizado y restauración en base de prueba.
+- **[Arquitectura y diagramas n8n/WAHA](../docs/n8n-alertas-por-sesion.md)**: flujo de cinco nodos, alertas y estados por sesión.
+- La URL MQTT de `.env.example` es un valor **de ejemplo**. En la instalación del laboratorio se utiliza el broker de la Raspberry Pi; configurar `MQTT_URL` y `MQTT_TOPIC` según la topología real antes de activar el consumidor.
